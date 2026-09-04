@@ -1,447 +1,221 @@
 import streamlit as st
 import sympy as sp
 from PIL import Image
-import re
+from pix2text import Pix2Text
+
+
+# -----------------------------
+# Page setup
+# -----------------------------
 
 st.set_page_config(
-    page_title="Math ↔ LaTeX",
+    page_title="Maths → LaTeX",
     page_icon="∑",
     layout="centered"
 )
 
-st.markdown("""
-<style>
-.block-container {
-    max-width: 850px;
-    padding-top: 2rem;
-}
-
-.title {
-    text-align: center;
-    font-size: 2.5rem;
-    font-weight: 700;
-}
-
-.subtitle {
-    text-align: center;
-    color: #666;
-    margin-bottom: 2rem;
-}
-
-.result-title {
-    font-weight: 600;
-    margin-top: 1.5rem;
-    margin-bottom: 0.5rem;
-}
-</style>
-""", unsafe_allow_html=True)
+st.title("Maths → LaTeX")
+st.write("Convert mathematical expressions and images into editable LaTeX.")
 
 
-def clean_latex(text):
-    text = str(text).strip()
+# -----------------------------
+# Helper functions
+# -----------------------------
 
-    text = re.sub(
-        r"^\s*\$\$(.*?)\$\$\s*$",
-        r"\1",
-        text,
-        flags=re.S
-    )
+def clean_latex(latex):
+    """Remove common LaTeX display wrappers."""
+    if not latex:
+        return ""
 
-    text = re.sub(
-        r"^\s*\$(.*?)\$\s*$",
-        r"\1",
-        text,
-        flags=re.S
-    )
+    latex = str(latex).strip()
 
-    text = re.sub(
-        r"^\s*\\\[(.*?)\\\]\s*$",
-        r"\1",
-        text,
-        flags=re.S
-    )
+    if latex.startswith("$$") and latex.endswith("$$"):
+        latex = latex[2:-2].strip()
 
-    text = re.sub(
-        r"^\s*\\\((.*?)\\\)\s*$",
-        r"\1",
-        text,
-        flags=re.S
-    )
+    elif latex.startswith("\\[") and latex.endswith("\\]"):
+        latex = latex[2:-2].strip()
 
-    return text.strip()
+    elif latex.startswith("\\(") and latex.endswith("\\)"):
+        latex = latex[2:-2].strip()
+
+    elif latex.startswith("$") and latex.endswith("$"):
+        latex = latex[1:-1].strip()
+
+    return latex
 
 
-def latex_to_word(latex):
-    """
-    Convert common LaTeX into Word UnicodeMath linear format.
-    Word can convert this linear format into a professional equation.
-    """
-
-    text = clean_latex(latex)
-
-    replacements = {
-        r"\left": "",
-        r"\right": "",
-        r"\cdot": "·",
-        r"\times": "×",
-        r"\div": "÷",
-        r"\pm": "±",
-        r"\mp": "∓",
-        r"\leq": "≤",
-        r"\le": "≤",
-        r"\geq": "≥",
-        r"\ge": "≥",
-        r"\neq": "≠",
-        r"\approx": "≈",
-        r"\equiv": "≡",
-        r"\infty": "∞",
-        r"\partial": "∂",
-        r"\nabla": "∇",
-        r"\rightarrow": "→",
-        r"\to": "→",
-        r"\leftarrow": "←",
-        r"\leftrightarrow": "↔",
-        r"\in": "∈",
-        r"\notin": "∉",
-        r"\subset": "⊂",
-        r"\subseteq": "⊆",
-        r"\cup": "∪",
-        r"\cap": "∩",
-        r"\emptyset": "∅",
-        r"\sum": "∑",
-        r"\prod": "∏",
-        r"\int": "∫",
-        r"\iint": "∬",
-        r"\iiint": "∭",
-        r"\oint": "∮",
-        r"\sqrt": "\\sqrt",
-    }
-
-    for command, symbol in replacements.items():
-        text = text.replace(command, symbol)
-
-    greek = {
-        r"\alpha": "α",
-        r"\beta": "β",
-        r"\gamma": "γ",
-        r"\delta": "δ",
-        r"\epsilon": "ε",
-        r"\varepsilon": "ϵ",
-        r"\theta": "θ",
-        r"\vartheta": "ϑ",
-        r"\lambda": "λ",
-        r"\mu": "μ",
-        r"\pi": "π",
-        r"\rho": "ρ",
-        r"\sigma": "σ",
-        r"\tau": "τ",
-        r"\phi": "φ",
-        r"\varphi": "ϕ",
-        r"\omega": "ω",
-        r"\Gamma": "Γ",
-        r"\Delta": "Δ",
-        r"\Theta": "Θ",
-        r"\Lambda": "Λ",
-        r"\Sigma": "Σ",
-        r"\Phi": "Φ",
-        r"\Omega": "Ω"
-    }
-
-    for command, symbol in greek.items():
-        text = text.replace(command, symbol)
-
-    # Fractions
-    text = re.sub(
-        r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}",
-        r"\1/(\2)",
-        text
-    )
-
-    # Square roots
-    text = re.sub(
-        r"\\sqrt\s*\{([^{}]+)\}",
-        r"√(\1)",
-        text
-    )
-
-    # Superscripts
-    text = re.sub(
-        r"\^\{([^{}]+)\}",
-        r"^\1",
-        text
-    )
-
-    # Subscripts
-    text = re.sub(
-        r"_\{([^{}]+)\}",
-        r"_\1",
-        text
-    )
-
-    # Remove remaining simple LaTeX commands
-    text = re.sub(
-        r"\\([A-Za-z]+)",
-        r"\1",
-        text
-    )
-
-    text = text.replace("{", "")
-    text = text.replace("}", "")
-
-    return text.strip()
-
-
-def latex_to_google_docs(latex):
-    """
-    Google Docs equation-compatible LaTeX-style notation.
-    Google Docs uses backslash commands inside its equation editor.
-    """
-
-    text = clean_latex(latex)
-
-    # Google Docs understands many LaTeX-style commands
-    # inside an equation box.
-    return text
-
-
-def show_latex_result(latex, key):
+def show_latex_result(latex):
+    """Display the generated equation and copyable LaTeX."""
     latex = clean_latex(latex)
 
     if not latex:
-        st.error("No LaTeX was produced.")
+        st.error("No equation was generated.")
         return
 
-    word_math = latex_to_word(latex)
-    google_math = latex_to_google_docs(latex)
+    st.subheader("Generated Equation")
 
-    st.markdown(
-        '<div class="result-title">Equation</div>',
-        unsafe_allow_html=True
-    )
+    # Render the equation
+    st.latex(latex)
 
-    try:
-        st.latex(latex)
-    except Exception:
-        st.warning(
-            "The result could not be rendered as an equation."
-        )
+    st.subheader("Copy Equation")
 
-    st.markdown(
-        '<div class="result-title">Copy for Word</div>',
-        unsafe_allow_html=True
-    )
+    # Streamlit provides a built-in copy button
+    st.code(latex, language="latex")
 
-    st.text_area(
-        "Word equation format",
-        value=word_math,
-        height=70,
-        key=f"word_{key}",
-        label_visibility="collapsed"
-    )
+    st.caption("Click the 📋 button to copy the equation.")
 
-    st.caption(
-        "In Word: press Alt + =, paste this, then choose "
-        "Convert → Professional if needed."
-    )
-
-    st.markdown(
-        '<div class="result-title">Copy for Google Docs</div>',
-        unsafe_allow_html=True
-    )
-
-    st.text_area(
-        "Google Docs equation format",
-        value=google_math,
-        height=70,
-        key=f"google_{key}",
-        label_visibility="collapsed"
-    )
-
-    st.caption(
-        "In Google Docs: Insert → Equation, then enter the expression."
-    )
-
-    st.markdown(
-        '<div class="result-title">LaTeX</div>',
-        unsafe_allow_html=True
-    )
+    st.subheader("Use in Microsoft Word")
 
     st.code(latex, language="latex")
 
+    st.caption(
+        "In Word, press Alt + =, paste the equation, "
+        "then choose Convert → Professional."
+    )
+
     st.download_button(
-        "Download LaTeX",
+        label="Download LaTeX",
         data=latex,
         file_name="equation.tex",
-        mime="text/plain",
-        key=f"download_{key}",
-        width="content"
+        mime="text/plain"
     )
 
 
-st.markdown(
-    '<div class="title">Math ↔ LaTeX</div>',
-    unsafe_allow_html=True
+# -----------------------------
+# Tabs
+# -----------------------------
+
+tab1, tab2, tab3 = st.tabs(
+    [
+        "LaTeX → Math",
+        "Math → LaTeX",
+        "Image → LaTeX"
+    ]
 )
 
-st.markdown(
-    '<div class="subtitle">'
-    'Convert equations between LaTeX, expressions and images.'
-    '</div>',
-    unsafe_allow_html=True
-)
 
+# -----------------------------
+# Tab 1: LaTeX → Math
+# -----------------------------
 
-latex_tab, math_tab, image_tab = st.tabs([
-    "LaTeX → Math",
-    "Math → LaTeX",
-    "Image → LaTeX"
-])
+with tab1:
 
-
-with latex_tab:
-    st.subheader("LaTeX → Math")
+    st.subheader("Enter LaTeX")
 
     latex_input = st.text_area(
-        "Enter LaTeX",
-        value=r"\frac{x^2 + 1}{2}",
+        "LaTeX",
+        placeholder=r"\frac{x^2 + 1}{2}",
         height=120,
-        placeholder=r"\frac{x^2+1}{2}"
+        label_visibility="collapsed"
     )
 
-    if st.button(
-        "Render Equation",
-        type="primary",
-        width="stretch",
-        key="render_latex"
-    ):
-        if not latex_input.strip():
-            st.warning("Please enter some LaTeX.")
-        else:
-            show_latex_result(
-                latex_input,
-                "latex"
+    if st.button("Render Equation", key="render_button"):
+
+        if latex_input.strip():
+            latex = clean_latex(latex_input)
+
+            st.subheader("Generated Equation")
+
+            st.latex(latex)
+
+            st.subheader("Copy Equation")
+
+            st.code(latex, language="latex")
+
+            st.caption("Click the 📋 button to copy the equation.")
+
+            st.download_button(
+                "Download LaTeX",
+                latex,
+                file_name="equation.tex",
+                mime="text/plain",
+                key="download_latex_tab1"
             )
 
+        else:
+            st.warning("Please enter a LaTeX equation.")
 
-with math_tab:
-    st.subheader("Math expression → LaTeX")
+
+# -----------------------------
+# Tab 2: Math → LaTeX
+# -----------------------------
+
+with tab2:
+
+    st.subheader("Enter a Mathematical Expression")
+
+    math_input = st.text_area(
+        "Math expression",
+        placeholder="(x^2 + 1)/2",
+        height=120,
+        label_visibility="collapsed"
+    )
 
     st.caption(
-        "Type expressions such as: (x^2 + 1)/2, sqrt(x), sin(x), x^2 + y^2"
+        "Examples: (x^2 + 1)/2, sqrt(x), sin(x), x^2 + y^2"
     )
 
-    math_input = st.text_input(
-        "Enter expression",
-        placeholder="(x^2 + 1) / 2"
-    )
+    if st.button("Convert to LaTeX", key="math_button"):
 
-    if st.button(
-        "Convert to LaTeX",
-        type="primary",
-        width="stretch",
-        key="convert_math"
-    ):
-        if not math_input.strip():
-            st.warning("Please enter an expression.")
-        else:
+        if math_input.strip():
+
             try:
                 expression = sp.sympify(math_input)
-                latex_output = sp.latex(expression)
+                latex = sp.latex(expression)
 
-                show_latex_result(
-                    latex_output,
-                    "math"
-                )
+                show_latex_result(latex)
 
             except Exception:
                 st.error(
-                    "I couldn't understand that expression."
+                    "I couldn't understand that mathematical expression."
                 )
 
-                st.info(
-                    "Try something like: (x^2 + 1) / 2"
-                )
+        else:
+            st.warning("Please enter a mathematical expression.")
 
 
-with image_tab:
-    st.subheader("Image → LaTeX")
+# -----------------------------
+# Tab 3: Image → LaTeX
+# -----------------------------
 
-    st.caption(
-        "Upload a PNG, JPG or JPEG containing a mathematical equation."
-    )
+with tab3:
+
+    st.subheader("Upload a Mathematical Image")
 
     uploaded_file = st.file_uploader(
-        "Choose an image",
-        type=["png", "jpg", "jpeg"],
+        "Upload image",
+        type=["png", "jpg", "jpeg", "webp"],
         label_visibility="collapsed"
     )
 
     if uploaded_file:
 
-        try:
-            image = Image.open(uploaded_file)
+        image = Image.open(uploaded_file)
 
-            st.image(
-                image,
-                caption="Uploaded equation",
-                width="stretch"
-            )
+        st.image(
+            image,
+            caption="Uploaded image",
+            use_container_width=True
+        )
 
-        except Exception:
-            st.error(
-                "The uploaded image could not be opened."
-            )
-            st.stop()
+        if st.button("Convert Image to LaTeX", key="image_button"):
 
-        if st.button(
-            "Convert Image",
-            type="primary",
-            width="stretch",
-            key="convert_image"
-        ):
-
-            with st.spinner(
-                "Recognizing equation..."
-            ):
+            with st.spinner("Reading equation..."):
 
                 try:
-                    from pix2text import Pix2Text
 
                     p2t = Pix2Text()
+
                     result = p2t.recognize_formula(image)
 
-                    latex_output = clean_latex(result)
+                    latex = clean_latex(result)
 
-                    if not latex_output:
-                        st.error(
-                            "No mathematical equation was detected."
-                        )
-                    else:
-                        st.success(
-                            "Equation recognized."
-                        )
+                    show_latex_result(latex)
 
-                        show_latex_result(
-                            latex_output,
-                            "image"
-                        )
+                except Exception as e:
 
-                except Exception as error:
                     st.error(
-                        "Image recognition failed."
+                        "Couldn't read the equation from the image."
                     )
 
-                    st.warning(
-                        "Pix2Text is installed, but the recognition "
-                        "process returned an error."
-                    )
-
-                    with st.expander(
-                        "Technical details"
-                    ):
-                        st.code(str(error))
-
-
-st.divider()
-
-st.caption("Math ↔ LaTeX Converter")
+                    st.exception(e)
