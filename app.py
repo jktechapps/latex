@@ -37,13 +37,150 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+SUPERSCRIPTS = str.maketrans(
+    "0123456789+-=()n",
+    "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ"
+)
+
+SUBSCRIPTS = str.maketrans(
+    "0123456789+-=()",
+    "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
+)
+
+GREEK = {
+    r"\alpha": "α",
+    r"\beta": "β",
+    r"\gamma": "γ",
+    r"\delta": "δ",
+    r"\epsilon": "ε",
+    r"\varepsilon": "ϵ",
+    r"\theta": "θ",
+    r"\lambda": "λ",
+    r"\mu": "μ",
+    r"\pi": "π",
+    r"\sigma": "σ",
+    r"\phi": "φ",
+    r"\omega": "ω",
+    r"\Delta": "Δ",
+    r"\Gamma": "Γ",
+    r"\Lambda": "Λ",
+    r"\Sigma": "Σ",
+    r"\Phi": "Φ",
+    r"\Omega": "Ω"
+}
+
+
 def clean_latex(text):
     text = str(text).strip()
 
-    text = re.sub(r"^\s*\$\$(.*?)\$\$\s*$", r"\1", text, flags=re.S)
-    text = re.sub(r"^\s*\$(.*?)\$\s*$", r"\1", text, flags=re.S)
-    text = re.sub(r"^\s*\\\[(.*?)\\\]\s*$", r"\1", text, flags=re.S)
-    text = re.sub(r"^\s*\\\((.*?)\\\)\s*$", r"\1", text, flags=re.S)
+    text = re.sub(
+        r"^\s*\$\$(.*?)\$\$\s*$",
+        r"\1",
+        text,
+        flags=re.S
+    )
+
+    text = re.sub(
+        r"^\s*\$(.*?)\$\s*$",
+        r"\1",
+        text,
+        flags=re.S
+    )
+
+    text = re.sub(
+        r"^\s*\\\[(.*?)\\\]\s*$",
+        r"\1",
+        text,
+        flags=re.S
+    )
+
+    text = re.sub(
+        r"^\s*\\\((.*?)\\\)\s*$",
+        r"\1",
+        text,
+        flags=re.S
+    )
+
+    return text.strip()
+
+
+def latex_to_math(latex):
+    text = clean_latex(latex)
+
+    for command, symbol in GREEK.items():
+        text = text.replace(command, symbol)
+
+    replacements = {
+        r"\cdot": "·",
+        r"\times": "×",
+        r"\div": "÷",
+        r"\pm": "±",
+        r"\mp": "∓",
+        r"\leq": "≤",
+        r"\le": "≤",
+        r"\geq": "≥",
+        r"\ge": "≥",
+        r"\neq": "≠",
+        r"\approx": "≈",
+        r"\equiv": "≡",
+        r"\infty": "∞",
+        r"\rightarrow": "→",
+        r"\to": "→",
+        r"\left": "",
+        r"\right": "",
+        r"\,": " ",
+        r"\ ": " ",
+    }
+
+    for command, symbol in replacements.items():
+        text = text.replace(command, symbol)
+
+    text = re.sub(
+        r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}",
+        r"(\1)/(\2)",
+        text
+    )
+
+    text = re.sub(
+        r"\\sqrt\s*\{([^{}]+)\}",
+        r"√(\1)",
+        text
+    )
+
+    text = re.sub(
+        r"\\sqrt\s*([A-Za-z0-9])",
+        r"√\1",
+        text
+    )
+
+    text = re.sub(
+        r"\^\{([^{}]+)\}",
+        lambda m: m.group(1).translate(SUPERSCRIPTS),
+        text
+    )
+
+    text = re.sub(
+        r"\^([A-Za-z0-9+\-=()])",
+        lambda m: m.group(1).translate(SUPERSCRIPTS),
+        text
+    )
+
+    text = re.sub(
+        r"_\{([^{}]+)\}",
+        lambda m: m.group(1).translate(SUBSCRIPTS),
+        text
+    )
+
+    text = re.sub(
+        r"_([A-Za-z0-9+\-=()])",
+        lambda m: m.group(1).translate(SUBSCRIPTS),
+        text
+    )
+
+    text = re.sub(r"\\([A-Za-z]+)", r"\1", text)
+
+    text = text.replace("{", "")
+    text = text.replace("}", "")
 
     return text.strip()
 
@@ -55,6 +192,8 @@ def show_latex_result(latex, key):
         st.error("No LaTeX was produced.")
         return
 
+    math_text = latex_to_math(latex)
+
     st.markdown(
         '<div class="result-title">Equation</div>',
         unsafe_allow_html=True
@@ -64,6 +203,19 @@ def show_latex_result(latex, key):
         st.latex(latex)
     except Exception:
         st.warning("The result could not be rendered as an equation.")
+
+    st.markdown(
+        '<div class="result-title">Math format</div>',
+        unsafe_allow_html=True
+    )
+
+    st.text_area(
+        "Math format",
+        value=math_text,
+        height=70,
+        key=f"math_{key}",
+        label_visibility="collapsed"
+    )
 
     st.markdown(
         '<div class="result-title">LaTeX</div>',
@@ -80,8 +232,6 @@ def show_latex_result(latex, key):
         key=f"download_{key}",
         width="content"
     )
-
-    st.caption("Select the LaTeX above and copy it with Ctrl+C.")
 
 
 st.markdown(
@@ -210,7 +360,6 @@ with image_tab:
                     from pix2text import Pix2Text
 
                     p2t = Pix2Text()
-
                     result = p2t.recognize_formula(image)
 
                     latex_output = clean_latex(result)
