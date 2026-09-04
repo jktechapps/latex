@@ -19,7 +19,7 @@ st.write("Convert mathematical expressions and images into editable LaTeX.")
 
 
 # --------------------------------------------------
-# Helpers
+# LaTeX cleanup
 # --------------------------------------------------
 
 def clean_latex(latex):
@@ -44,34 +44,30 @@ def clean_latex(latex):
 
 
 # --------------------------------------------------
-# Copy component
+# Copy buttons
 # --------------------------------------------------
 
 COPY_HTML = """
-<div class="copy-container">
-    <button id="copy-equation">
-        📋 Copy as Equation
-    </button>
-
-    <button id="copy-latex">
-        📋 Copy as LaTeX
-    </button>
+<div class="buttons">
+    <button id="copy-equation">📋 Copy as Equation</button>
+    <button id="copy-latex">📋 Copy as LaTeX</button>
 </div>
 """
 
 
 COPY_CSS = """
-.copy-container {
+.buttons {
     display: flex;
     gap: 10px;
-    margin-top: 6px;
-    margin-bottom: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    margin-bottom: 8px;
 }
 
 button {
-    border: 1px solid var(--st-border-color);
-    border-radius: 6px;
     padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--st-border-color);
     background: var(--st-secondary-background-color);
     color: var(--st-text-color);
     cursor: pointer;
@@ -100,7 +96,7 @@ export default function(component) {
         parentElement.querySelector("#copy-latex");
 
 
-    function copied(button, originalText) {
+    function showCopied(button, originalText) {
 
         button.innerText = "✓ Copied";
 
@@ -118,9 +114,11 @@ export default function(component) {
 
         try {
 
-            await navigator.clipboard.writeText(data.latex);
+            await navigator.clipboard.writeText(
+                data.latex
+            );
 
-            copied(
+            showCopied(
                 latexButton,
                 "📋 Copy as LaTeX"
             );
@@ -144,7 +142,7 @@ export default function(component) {
 
             textarea.remove();
 
-            copied(
+            showCopied(
                 latexButton,
                 "📋 Copy as LaTeX"
             );
@@ -153,7 +151,7 @@ export default function(component) {
 
 
     // ----------------------------------------
-    // Render equation and copy as PNG
+    // Copy rendered equation
     // ----------------------------------------
 
     equationButton.onclick = async () => {
@@ -164,19 +162,15 @@ export default function(component) {
                 "⏳ Copying...";
 
 
-            // Load MathJax once
+            // Load MathJax
             if (!window.MathJax) {
 
                 window.MathJax = {
                     tex: {
-                        inlineMath: [
-                            ["\\\\(", "\\\\)"]
-                        ],
                         displayMath: [
                             ["\\\\[", "\\\\]"]
                         ]
                     },
-
                     svg: {
                         fontCache: "none"
                     }
@@ -199,50 +193,46 @@ export default function(component) {
             }
 
 
-            // Create temporary math element
-            const math =
+            // Temporary container
+            const container =
                 document.createElement("div");
 
-            math.style.position = "fixed";
-            math.style.left = "-10000px";
-            math.style.top = "0";
+            container.style.position = "fixed";
+            container.style.left = "-10000px";
+            container.style.top = "0";
+            container.style.background = "white";
+            container.style.color = "black";
+            container.style.padding = "20px";
+            container.style.fontSize = "32px";
 
-            math.style.background = "white";
-            math.style.color = "black";
-
-            math.style.padding = "20px";
-
-            math.style.fontSize = "32px";
-
-            math.innerHTML =
+            container.innerHTML =
                 "\\\\[" +
                 data.latex +
                 "\\\\]";
 
-
-            document.body.appendChild(math);
+            document.body.appendChild(container);
 
 
             // Render LaTeX
-            await MathJax.typesetPromise([math]);
+            await MathJax.typesetPromise([
+                container
+            ]);
 
 
             const svg =
-                math.querySelector("svg");
+                container.querySelector("svg");
 
 
             if (!svg) {
-
                 throw new Error(
                     "Equation rendering failed."
                 );
             }
 
 
-            // Clone SVG
+            // Copy SVG as an image
             const svgClone =
                 svg.cloneNode(true);
-
 
             svgClone.setAttribute(
                 "xmlns",
@@ -250,13 +240,11 @@ export default function(component) {
             );
 
 
-            // Convert SVG to string
             const svgString =
                 new XMLSerializer()
                     .serializeToString(svgClone);
 
 
-            // Create SVG blob
             const svgBlob =
                 new Blob(
                     [svgString],
@@ -266,11 +254,10 @@ export default function(component) {
                 );
 
 
-            const svgUrl =
+            const svgURL =
                 URL.createObjectURL(svgBlob);
 
 
-            // Load SVG into an image
             const img =
                 new Image();
 
@@ -280,17 +267,15 @@ export default function(component) {
                 img.onload = resolve;
                 img.onerror = reject;
 
-                img.src = svgUrl;
+                img.src = svgURL;
             });
 
 
-            // Create canvas
+            // Canvas
             const canvas =
                 document.createElement("canvas");
 
-
             const scale = 2;
-
 
             canvas.width =
                 img.width * scale;
@@ -299,13 +284,13 @@ export default function(component) {
                 img.height * scale;
 
 
-            const ctx =
+            const context =
                 canvas.getContext("2d");
 
 
-            ctx.fillStyle = "white";
+            context.fillStyle = "white";
 
-            ctx.fillRect(
+            context.fillRect(
                 0,
                 0,
                 canvas.width,
@@ -313,20 +298,20 @@ export default function(component) {
             );
 
 
-            ctx.scale(
+            context.scale(
                 scale,
                 scale
             );
 
 
-            ctx.drawImage(
+            context.drawImage(
                 img,
                 0,
                 0
             );
 
 
-            // Convert canvas to PNG
+            // PNG
             const pngBlob =
                 await new Promise(resolve => {
 
@@ -338,14 +323,13 @@ export default function(component) {
 
 
             if (!pngBlob) {
-
                 throw new Error(
-                    "PNG conversion failed."
+                    "Could not create PNG."
                 );
             }
 
 
-            // Copy PNG to clipboard
+            // Clipboard
             const clipboardItem =
                 new ClipboardItem({
                     "image/png": pngBlob
@@ -358,12 +342,12 @@ export default function(component) {
 
 
             // Cleanup
-            URL.revokeObjectURL(svgUrl);
+            URL.revokeObjectURL(svgURL);
 
-            math.remove();
+            container.remove();
 
 
-            copied(
+            showCopied(
                 equationButton,
                 "📋 Copy as Equation"
             );
@@ -372,14 +356,12 @@ export default function(component) {
         } catch (error) {
 
             console.error(
-                "Copy equation error:",
+                "Copy equation failed:",
                 error
             );
 
-
             equationButton.innerText =
                 "⚠ Copy failed";
-
 
             setTimeout(() => {
 
@@ -393,14 +375,18 @@ export default function(component) {
 """
 
 
-# Register component once
-copy_component = st.components.v2.component(
-    name="equation_copy_component",
+# Register the component
+copy_equation = st.components.v2.component(
+    name="equation_copy_buttons",
     html=COPY_HTML,
     css=COPY_CSS,
     js=COPY_JS
 )
 
+
+# --------------------------------------------------
+# Display result
+# --------------------------------------------------
 
 def show_latex_result(latex):
 
@@ -412,11 +398,9 @@ def show_latex_result(latex):
 
     st.subheader("Generated Equation")
 
-    # Render equation
     st.latex(latex)
 
-    # Copy buttons
-    copy_component(
+    copy_equation(
         data={
             "latex": latex
         }
@@ -437,7 +421,7 @@ tab1, tab2, tab3 = st.tabs(
 
 
 # --------------------------------------------------
-# LaTeX → Math
+# Tab 1: LaTeX → Math
 # --------------------------------------------------
 
 with tab1:
@@ -470,7 +454,7 @@ with tab1:
 
 
 # --------------------------------------------------
-# Math → LaTeX
+# Tab 2: Math → LaTeX
 # --------------------------------------------------
 
 with tab2:
@@ -500,11 +484,13 @@ with tab2:
 
             try:
 
-                expression =
-                    sp.sympify(math_input)
+                expression = sp.sympify(
+                    math_input
+                )
 
-                latex =
-                    sp.latex(expression)
+                latex = sp.latex(
+                    expression
+                )
 
                 show_latex_result(
                     latex
@@ -525,7 +511,7 @@ with tab2:
 
 
 # --------------------------------------------------
-# Image → LaTeX
+# Tab 3: Image → LaTeX
 # --------------------------------------------------
 
 with tab3:
@@ -570,13 +556,13 @@ with tab3:
 
                     p2t = Pix2Text()
 
-                    result =
-                        p2t.recognize_formula(
-                            image
-                        )
+                    result = p2t.recognize_formula(
+                        image
+                    )
 
-                    latex =
-                        clean_latex(result)
+                    latex = clean_latex(
+                        result
+                    )
 
                     show_latex_result(
                         latex
