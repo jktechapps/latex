@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import sympy as sp
 from PIL import Image
