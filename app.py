@@ -1,10 +1,10 @@
-import html
 import streamlit as st
 import sympy as sp
 from PIL import Image
+import re
 
 st.set_page_config(
-    page_title="Math ↔ LaTeX Converter",
+    page_title="Math ↔ LaTeX",
     page_icon="∑",
     layout="centered"
 )
@@ -28,39 +28,60 @@ st.markdown("""
     margin-bottom: 2rem;
 }
 
-.result {
-    margin-top: 1.5rem;
+.result-title {
     font-weight: 600;
-    font-size: 1.1rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-def copy_button(text, key):
-    safe_text = html.escape(text).replace("\\", "\\\\").replace("`", "\\`")
+def clean_latex(text):
+    text = str(text).strip()
 
-    st.components.v1.html(
-        f"""
-        <button
-            onclick="
-                navigator.clipboard.writeText(`{safe_text}`);
-                this.innerText='✓ Copied';
-                setTimeout(() => this.innerText='📋 Copy LaTeX', 1500);
-            "
-            style="
-                padding: 7px 14px;
-                border: 1px solid #ccc;
-                border-radius: 6px;
-                background: white;
-                cursor: pointer;
-            "
-        >
-            📋 Copy LaTeX
-        </button>
-        """,
-        height=45
+    text = re.sub(r"^\s*\$\$(.*?)\$\$\s*$", r"\1", text, flags=re.S)
+    text = re.sub(r"^\s*\$(.*?)\$\s*$", r"\1", text, flags=re.S)
+    text = re.sub(r"^\s*\\\[(.*?)\\\]\s*$", r"\1", text, flags=re.S)
+    text = re.sub(r"^\s*\\\((.*?)\\\)\s*$", r"\1", text, flags=re.S)
+
+    return text.strip()
+
+
+def show_latex_result(latex, key):
+    latex = clean_latex(latex)
+
+    if not latex:
+        st.error("No LaTeX was produced.")
+        return
+
+    st.markdown(
+        '<div class="result-title">Equation</div>',
+        unsafe_allow_html=True
     )
+
+    try:
+        st.latex(latex)
+    except Exception:
+        st.warning("The result could not be rendered as an equation.")
+
+    st.markdown(
+        '<div class="result-title">LaTeX</div>',
+        unsafe_allow_html=True
+    )
+
+    st.code(latex, language="latex")
+
+    st.download_button(
+        "Download LaTeX",
+        data=latex,
+        file_name="equation.tex",
+        mime="text/plain",
+        key=f"download_{key}",
+        width="content"
+    )
+
+    st.caption("Select the LaTeX above and copy it with Ctrl+C.")
 
 
 st.markdown(
@@ -70,7 +91,7 @@ st.markdown(
 
 st.markdown(
     '<div class="subtitle">'
-    'Convert equations between LaTeX, mathematical expressions and images.'
+    'Convert equations between LaTeX, expressions and images.'
     '</div>',
     unsafe_allow_html=True
 )
@@ -86,7 +107,7 @@ latex_tab, math_tab, image_tab = st.tabs([
 with latex_tab:
     st.subheader("LaTeX → Math")
 
-    latex = st.text_area(
+    latex_input = st.text_area(
         "Enter LaTeX",
         value=r"\frac{x^2 + 1}{2}",
         height=120,
@@ -96,37 +117,26 @@ with latex_tab:
     if st.button(
         "Render Equation",
         type="primary",
-        use_container_width=True,
-        key="render"
+        width="stretch",
+        key="render_latex"
     ):
-        if not latex.strip():
-            st.warning("Enter some LaTeX first.")
+        if not latex_input.strip():
+            st.warning("Please enter some LaTeX.")
         else:
-            st.markdown(
-                '<div class="result">Equation</div>',
-                unsafe_allow_html=True
+            show_latex_result(
+                latex_input,
+                "latex"
             )
-
-            st.latex(latex)
-
-            st.markdown(
-                '<div class="result">LaTeX</div>',
-                unsafe_allow_html=True
-            )
-
-            st.code(latex)
-
-            copy_button(latex, "copy_latex")
 
 
 with math_tab:
     st.subheader("Math expression → LaTeX")
 
     st.caption(
-        "Examples: (x^2 + 1)/2, sqrt(x), sin(x), x^2 + y^2"
+        "Type expressions such as: (x^2 + 1)/2, sqrt(x), sin(x), x^2 + y^2"
     )
 
-    expression = st.text_input(
+    math_input = st.text_input(
         "Enter expression",
         placeholder="(x^2 + 1) / 2"
     )
@@ -134,36 +144,28 @@ with math_tab:
     if st.button(
         "Convert to LaTeX",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         key="convert_math"
     ):
-        if not expression.strip():
-            st.warning("Enter an expression first.")
+        if not math_input.strip():
+            st.warning("Please enter an expression.")
         else:
             try:
-                result = sp.sympify(expression)
-                latex = sp.latex(result)
+                expression = sp.sympify(math_input)
+                latex_output = sp.latex(expression)
 
-                st.markdown(
-                    '<div class="result">Equation</div>',
-                    unsafe_allow_html=True
+                show_latex_result(
+                    latex_output,
+                    "math"
                 )
-
-                st.latex(latex)
-
-                st.markdown(
-                    '<div class="result">LaTeX</div>',
-                    unsafe_allow_html=True
-                )
-
-                st.code(latex)
-
-                copy_button(latex, "copy_math")
 
             except Exception:
                 st.error(
-                    "I couldn't understand that expression. "
-                    "Try something like (x^2 + 1)/2."
+                    "I couldn't understand that expression."
+                )
+
+                st.info(
+                    "Try something like: (x^2 + 1) / 2"
                 )
 
 
@@ -174,75 +176,71 @@ with image_tab:
         "Upload a PNG, JPG or JPEG containing a mathematical equation."
     )
 
-    uploaded = st.file_uploader(
-        "Upload equation image",
+    uploaded_file = st.file_uploader(
+        "Choose an image",
         type=["png", "jpg", "jpeg"],
         label_visibility="collapsed"
     )
 
-    if uploaded:
-        image = Image.open(uploaded)
+    if uploaded_file:
 
-        st.image(
-            image,
-            caption="Uploaded image",
-            use_container_width=True
-        )
+        try:
+            image = Image.open(uploaded_file)
+
+            st.image(
+                image,
+                caption="Uploaded equation",
+                width="stretch"
+            )
+
+        except Exception:
+            st.error("The uploaded image could not be opened.")
+            st.stop()
 
         if st.button(
             "Convert Image",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             key="convert_image"
         ):
+
             with st.spinner("Recognizing equation..."):
+
                 try:
                     from pix2text import Pix2Text
 
                     p2t = Pix2Text()
+
                     result = p2t.recognize_formula(image)
 
-                    latex = str(result).strip()
+                    latex_output = clean_latex(result)
 
-                    if not latex:
-                        st.error("No equation was detected.")
+                    if not latex_output:
+                        st.error(
+                            "No mathematical equation was detected."
+                        )
                     else:
                         st.success("Equation recognized.")
 
-                        st.markdown(
-                            '<div class="result">LaTeX</div>',
-                            unsafe_allow_html=True
+                        show_latex_result(
+                            latex_output,
+                            "image"
                         )
-
-                        st.code(latex)
-
-                        copy_button(latex, "copy_image")
-
-                        st.markdown(
-                            '<div class="result">Equation</div>',
-                            unsafe_allow_html=True
-                        )
-
-                        try:
-                            st.latex(latex)
-                        except Exception:
-                            st.warning(
-                                "The OCR result could not be rendered."
-                            )
-
-                except ImportError:
-                    st.error(
-                        "Pix2Text is not installed. "
-                        "Check requirements.txt."
-                    )
 
                 except Exception as error:
                     st.error(
-                        "The equation could not be recognized."
+                        "Image recognition failed."
                     )
-                    st.caption(str(error))
+
+                    st.warning(
+                        "Pix2Text is installed, but the recognition "
+                        "process returned an error."
+                    )
+
+                    with st.expander("Technical details"):
+                        st.code(str(error))
 
 
 st.divider()
 
-st.caption("Free Math ↔ LaTeX Converter")
+st.caption("Math ↔ LaTeX Converter")
