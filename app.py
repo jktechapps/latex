@@ -251,4 +251,3 @@ st.markdown("---")
 st.caption(
     "Free Math ↔ LaTeX Converter"
 )
-```
