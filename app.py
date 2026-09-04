@@ -37,39 +37,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-SUPERSCRIPTS = str.maketrans(
-    "0123456789+-=()n",
-    "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿ"
-)
-
-SUBSCRIPTS = str.maketrans(
-    "0123456789+-=()",
-    "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎"
-)
-
-GREEK = {
-    r"\alpha": "α",
-    r"\beta": "β",
-    r"\gamma": "γ",
-    r"\delta": "δ",
-    r"\epsilon": "ε",
-    r"\varepsilon": "ϵ",
-    r"\theta": "θ",
-    r"\lambda": "λ",
-    r"\mu": "μ",
-    r"\pi": "π",
-    r"\sigma": "σ",
-    r"\phi": "φ",
-    r"\omega": "ω",
-    r"\Delta": "Δ",
-    r"\Gamma": "Γ",
-    r"\Lambda": "Λ",
-    r"\Sigma": "Σ",
-    r"\Phi": "Φ",
-    r"\Omega": "Ω"
-}
-
-
 def clean_latex(text):
     text = str(text).strip()
 
@@ -104,13 +71,17 @@ def clean_latex(text):
     return text.strip()
 
 
-def latex_to_math(latex):
+def latex_to_word(latex):
+    """
+    Convert common LaTeX into Word UnicodeMath linear format.
+    Word can convert this linear format into a professional equation.
+    """
+
     text = clean_latex(latex)
 
-    for command, symbol in GREEK.items():
-        text = text.replace(command, symbol)
-
     replacements = {
+        r"\left": "",
+        r"\right": "",
         r"\cdot": "·",
         r"\times": "×",
         r"\div": "÷",
@@ -124,65 +95,113 @@ def latex_to_math(latex):
         r"\approx": "≈",
         r"\equiv": "≡",
         r"\infty": "∞",
+        r"\partial": "∂",
+        r"\nabla": "∇",
         r"\rightarrow": "→",
         r"\to": "→",
-        r"\left": "",
-        r"\right": "",
-        r"\,": " ",
-        r"\ ": " ",
+        r"\leftarrow": "←",
+        r"\leftrightarrow": "↔",
+        r"\in": "∈",
+        r"\notin": "∉",
+        r"\subset": "⊂",
+        r"\subseteq": "⊆",
+        r"\cup": "∪",
+        r"\cap": "∩",
+        r"\emptyset": "∅",
+        r"\sum": "∑",
+        r"\prod": "∏",
+        r"\int": "∫",
+        r"\iint": "∬",
+        r"\iiint": "∭",
+        r"\oint": "∮",
+        r"\sqrt": "\\sqrt",
     }
 
     for command, symbol in replacements.items():
         text = text.replace(command, symbol)
 
+    greek = {
+        r"\alpha": "α",
+        r"\beta": "β",
+        r"\gamma": "γ",
+        r"\delta": "δ",
+        r"\epsilon": "ε",
+        r"\varepsilon": "ϵ",
+        r"\theta": "θ",
+        r"\vartheta": "ϑ",
+        r"\lambda": "λ",
+        r"\mu": "μ",
+        r"\pi": "π",
+        r"\rho": "ρ",
+        r"\sigma": "σ",
+        r"\tau": "τ",
+        r"\phi": "φ",
+        r"\varphi": "ϕ",
+        r"\omega": "ω",
+        r"\Gamma": "Γ",
+        r"\Delta": "Δ",
+        r"\Theta": "Θ",
+        r"\Lambda": "Λ",
+        r"\Sigma": "Σ",
+        r"\Phi": "Φ",
+        r"\Omega": "Ω"
+    }
+
+    for command, symbol in greek.items():
+        text = text.replace(command, symbol)
+
+    # Fractions
     text = re.sub(
         r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}",
-        r"(\1)/(\2)",
+        r"\1/(\2)",
         text
     )
 
+    # Square roots
     text = re.sub(
         r"\\sqrt\s*\{([^{}]+)\}",
         r"√(\1)",
         text
     )
 
-    text = re.sub(
-        r"\\sqrt\s*([A-Za-z0-9])",
-        r"√\1",
-        text
-    )
-
+    # Superscripts
     text = re.sub(
         r"\^\{([^{}]+)\}",
-        lambda m: m.group(1).translate(SUPERSCRIPTS),
+        r"^\1",
         text
     )
 
-    text = re.sub(
-        r"\^([A-Za-z0-9+\-=()])",
-        lambda m: m.group(1).translate(SUPERSCRIPTS),
-        text
-    )
-
+    # Subscripts
     text = re.sub(
         r"_\{([^{}]+)\}",
-        lambda m: m.group(1).translate(SUBSCRIPTS),
+        r"_\1",
         text
     )
 
+    # Remove remaining simple LaTeX commands
     text = re.sub(
-        r"_([A-Za-z0-9+\-=()])",
-        lambda m: m.group(1).translate(SUBSCRIPTS),
+        r"\\([A-Za-z]+)",
+        r"\1",
         text
     )
-
-    text = re.sub(r"\\([A-Za-z]+)", r"\1", text)
 
     text = text.replace("{", "")
     text = text.replace("}", "")
 
     return text.strip()
+
+
+def latex_to_google_docs(latex):
+    """
+    Google Docs equation-compatible LaTeX-style notation.
+    Google Docs uses backslash commands inside its equation editor.
+    """
+
+    text = clean_latex(latex)
+
+    # Google Docs understands many LaTeX-style commands
+    # inside an equation box.
+    return text
 
 
 def show_latex_result(latex, key):
@@ -192,7 +211,8 @@ def show_latex_result(latex, key):
         st.error("No LaTeX was produced.")
         return
 
-    math_text = latex_to_math(latex)
+    word_math = latex_to_word(latex)
+    google_math = latex_to_google_docs(latex)
 
     st.markdown(
         '<div class="result-title">Equation</div>',
@@ -202,19 +222,43 @@ def show_latex_result(latex, key):
     try:
         st.latex(latex)
     except Exception:
-        st.warning("The result could not be rendered as an equation.")
+        st.warning(
+            "The result could not be rendered as an equation."
+        )
 
     st.markdown(
-        '<div class="result-title">Math format</div>',
+        '<div class="result-title">Copy for Word</div>',
         unsafe_allow_html=True
     )
 
     st.text_area(
-        "Math format",
-        value=math_text,
+        "Word equation format",
+        value=word_math,
         height=70,
-        key=f"math_{key}",
+        key=f"word_{key}",
         label_visibility="collapsed"
+    )
+
+    st.caption(
+        "In Word: press Alt + =, paste this, then choose "
+        "Convert → Professional if needed."
+    )
+
+    st.markdown(
+        '<div class="result-title">Copy for Google Docs</div>',
+        unsafe_allow_html=True
+    )
+
+    st.text_area(
+        "Google Docs equation format",
+        value=google_math,
+        height=70,
+        key=f"google_{key}",
+        label_visibility="collapsed"
+    )
+
+    st.caption(
+        "In Google Docs: Insert → Equation, then enter the expression."
     )
 
     st.markdown(
@@ -344,7 +388,9 @@ with image_tab:
             )
 
         except Exception:
-            st.error("The uploaded image could not be opened.")
+            st.error(
+                "The uploaded image could not be opened."
+            )
             st.stop()
 
         if st.button(
@@ -354,7 +400,9 @@ with image_tab:
             key="convert_image"
         ):
 
-            with st.spinner("Recognizing equation..."):
+            with st.spinner(
+                "Recognizing equation..."
+            ):
 
                 try:
                     from pix2text import Pix2Text
@@ -369,7 +417,9 @@ with image_tab:
                             "No mathematical equation was detected."
                         )
                     else:
-                        st.success("Equation recognized.")
+                        st.success(
+                            "Equation recognized."
+                        )
 
                         show_latex_result(
                             latex_output,
@@ -386,7 +436,9 @@ with image_tab:
                         "process returned an error."
                     )
 
-                    with st.expander("Technical details"):
+                    with st.expander(
+                        "Technical details"
+                    ):
                         st.code(str(error))
 
 
