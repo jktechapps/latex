@@ -1,11 +1,7 @@
+import html
 import streamlit as st
 import sympy as sp
 from PIL import Image
-from io import BytesIO
-
-# ---------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------
 
 st.set_page_config(
     page_title="Math ↔ LaTeX Converter",
@@ -13,45 +9,59 @@ st.set_page_config(
     layout="centered"
 )
 
-# ---------------------------------------------------------
-# CSS
-# ---------------------------------------------------------
+st.markdown("""
+<style>
+.block-container {
+    max-width: 850px;
+    padding-top: 2rem;
+}
 
-st.markdown(
-    """
-    <style>
-        .block-container {
-            max-width: 900px;
-            padding-top: 2rem;
-            padding-bottom: 3rem;
-        }
+.title {
+    text-align: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+}
 
-        .title {
-            text-align: center;
-            font-size: 2.4rem;
-            font-weight: 700;
-        }
+.subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 2rem;
+}
 
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 2rem;
-        }
+.result {
+    margin-top: 1.5rem;
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
-        .result-box {
-            padding: 1.5rem;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            margin-top: 1rem;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
-# ---------------------------------------------------------
-# HEADER
-# ---------------------------------------------------------
+def copy_button(text, key):
+    safe_text = html.escape(text).replace("\\", "\\\\").replace("`", "\\`")
+
+    st.components.v1.html(
+        f"""
+        <button
+            onclick="
+                navigator.clipboard.writeText(`{safe_text}`);
+                this.innerText='✓ Copied';
+                setTimeout(() => this.innerText='📋 Copy LaTeX', 1500);
+            "
+            style="
+                padding: 7px 14px;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                background: white;
+                cursor: pointer;
+            "
+        >
+            📋 Copy LaTeX
+        </button>
+        """,
+        height=45
+    )
+
 
 st.markdown(
     '<div class="title">Math ↔ LaTeX</div>',
@@ -60,129 +70,118 @@ st.markdown(
 
 st.markdown(
     '<div class="subtitle">'
-    'Convert mathematical equations between LaTeX, text and images.'
+    'Convert equations between LaTeX, mathematical expressions and images.'
     '</div>',
     unsafe_allow_html=True
 )
 
-# ---------------------------------------------------------
-# TABS
-# ---------------------------------------------------------
 
-tab1, tab2, tab3 = st.tabs(
-    [
-        "LaTeX → Math",
-        "Math → LaTeX",
-        "Image → LaTeX"
-    ]
-)
+latex_tab, math_tab, image_tab = st.tabs([
+    "LaTeX → Math",
+    "Math → LaTeX",
+    "Image → LaTeX"
+])
 
-# =========================================================
-# TAB 1
-# LATEX → MATH
-# =========================================================
 
-with tab1:
+with latex_tab:
+    st.subheader("LaTeX → Math")
 
-    st.subheader("Enter LaTeX")
-
-    latex_input = st.text_area(
-        "LaTeX",
+    latex = st.text_area(
+        "Enter LaTeX",
         value=r"\frac{x^2 + 1}{2}",
         height=120,
-        placeholder=r"Example: \frac{x^2+1}{2}"
+        placeholder=r"\frac{x^2+1}{2}"
     )
 
     if st.button(
         "Render Equation",
-        key="render_latex",
-        use_container_width=True
+        type="primary",
+        use_container_width=True,
+        key="render"
     ):
+        if not latex.strip():
+            st.warning("Enter some LaTeX first.")
+        else:
+            st.markdown(
+                '<div class="result">Equation</div>',
+                unsafe_allow_html=True
+            )
 
-        if latex_input.strip():
+            st.latex(latex)
 
-            st.markdown("### Equation")
+            st.markdown(
+                '<div class="result">LaTeX</div>',
+                unsafe_allow_html=True
+            )
 
-            try:
-                st.latex(latex_input)
+            st.code(latex)
 
-                st.markdown("### LaTeX")
+            copy_button(latex, "copy_latex")
 
-                st.code(latex_input, language="text")
 
-            except Exception as e:
-                st.error(f"Could not render the equation: {e}")
+with math_tab:
+    st.subheader("Math expression → LaTeX")
 
-# =========================================================
-# TAB 2
-# MATH → LATEX
-# =========================================================
-
-with tab2:
-
-    st.subheader("Enter a mathematical expression")
-
-    st.info(
-        "For V1, enter the expression as normal mathematical text. "
-        "For example: (x^2 + 1) / 2"
+    st.caption(
+        "Examples: (x^2 + 1)/2, sqrt(x), sin(x), x^2 + y^2"
     )
 
-    math_input = st.text_input(
-        "Expression",
-        placeholder="Example: (x^2 + 1) / 2"
+    expression = st.text_input(
+        "Enter expression",
+        placeholder="(x^2 + 1) / 2"
     )
 
     if st.button(
         "Convert to LaTeX",
-        key="math_to_latex",
-        use_container_width=True
+        type="primary",
+        use_container_width=True,
+        key="convert_math"
     ):
-
-        if math_input.strip():
-
+        if not expression.strip():
+            st.warning("Enter an expression first.")
+        else:
             try:
+                result = sp.sympify(expression)
+                latex = sp.latex(result)
 
-                expression = sp.sympify(math_input)
+                st.markdown(
+                    '<div class="result">Equation</div>',
+                    unsafe_allow_html=True
+                )
 
-                latex_output = sp.latex(expression)
+                st.latex(latex)
 
-                st.markdown("### Equation")
+                st.markdown(
+                    '<div class="result">LaTeX</div>',
+                    unsafe_allow_html=True
+                )
 
-                st.latex(latex_output)
+                st.code(latex)
 
-                st.markdown("### LaTeX")
-
-                st.code(latex_output, language="text")
-
-                st.success("Converted successfully.")
+                copy_button(latex, "copy_math")
 
             except Exception:
                 st.error(
                     "I couldn't understand that expression. "
-                    "Try something like: (x^2 + 1) / 2"
+                    "Try something like (x^2 + 1)/2."
                 )
 
-# =========================================================
-# TAB 3
-# IMAGE → LATEX
-# =========================================================
 
-with tab3:
+with image_tab:
+    st.subheader("Image → LaTeX")
 
-    st.subheader("Upload an equation image")
-
-    st.write(
-        "Upload a screenshot, photo or image containing a mathematical equation."
+    st.caption(
+        "Upload a PNG, JPG or JPEG containing a mathematical equation."
     )
 
-    uploaded_file = st.file_uploader(
-        "Choose an image",
-        type=["png", "jpg", "jpeg"]
+    uploaded = st.file_uploader(
+        "Upload equation image",
+        type=["png", "jpg", "jpeg"],
+        label_visibility="collapsed"
     )
 
-    if uploaded_file:
-
-        image = Image.open(uploaded_file)
+    if uploaded:
+        image = Image.open(uploaded)
 
         st.image(
             image,
@@ -192,62 +191,58 @@ with tab3:
 
         if st.button(
             "Convert Image",
-            key="image_to_latex",
-            use_container_width=True
+            type="primary",
+            use_container_width=True,
+            key="convert_image"
         ):
-
             with st.spinner("Recognizing equation..."):
-
                 try:
-
                     from pix2text import Pix2Text
 
                     p2t = Pix2Text()
+                    result = p2t.recognize_formula(image)
 
-                    result = p2t.recognize_formula(
-                        image
-                    )
+                    latex = str(result).strip()
 
-                    latex_output = str(result)
+                    if not latex:
+                        st.error("No equation was detected.")
+                    else:
+                        st.success("Equation recognized.")
 
-                    st.markdown("### LaTeX")
+                        st.markdown(
+                            '<div class="result">LaTeX</div>',
+                            unsafe_allow_html=True
+                        )
 
-                    st.code(
-                        latex_output,
-                        language="text"
-                    )
+                        st.code(latex)
 
-                    st.markdown("### Equation")
+                        copy_button(latex, "copy_image")
 
-                    st.latex(latex_output)
+                        st.markdown(
+                            '<div class="result">Equation</div>',
+                            unsafe_allow_html=True
+                        )
 
-                    st.success(
-                        "Equation converted successfully."
-                    )
+                        try:
+                            st.latex(latex)
+                        except Exception:
+                            st.warning(
+                                "The OCR result could not be rendered."
+                            )
 
                 except ImportError:
-
                     st.error(
-                        "Image recognition is not installed yet."
+                        "Pix2Text is not installed. "
+                        "Check requirements.txt."
                     )
 
-                    st.info(
-                        "Add pix2text to requirements.txt "
-                        "and redeploy the application."
-                    )
-
-                except Exception as e:
-
+                except Exception as error:
                     st.error(
-                        f"Could not recognize the equation: {e}"
+                        "The equation could not be recognized."
                     )
+                    st.caption(str(error))
 
-# ---------------------------------------------------------
-# FOOTER
-# ---------------------------------------------------------
 
-st.markdown("---")
+st.divider()
 
-st.caption(
-    "Free Math ↔ LaTeX Converter"
-)
+st.caption("Free Math ↔ LaTeX Converter")
